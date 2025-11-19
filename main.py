@@ -1,13 +1,12 @@
-# main.py
-# Interface principal: desbloquear, alterar código, sair
 import pygame
 import sys
 from pathlib import Path
 import time
-from deepface import DeepFace
 import cv2
 import numpy as np
 import json
+import threading
+from deepface import DeepFace
 
 # --- Cores ---
 COLORS = {
@@ -49,7 +48,7 @@ def text_input_box(screen, font, prompt):
         screen.blit(font.render(txt, True, COLORS['text']), (50, 260))
         pygame.display.flip()
         clock.tick(30)
-    return txt
+    return txt.strip()
 
 class Button:
     def __init__(self, text, x, y, w, h):
@@ -57,20 +56,63 @@ class Button:
         self.rect = pygame.Rect(x, y, w, h)
     def draw(self, surf, font):
         mx, my = pygame.mouse.get_pos()
-        if self.rect.collidepoint(mx, my):
-            pygame.draw.rect(surf, COLORS['button_hover'], self.rect)
-        else:
-            pygame.draw.rect(surf, COLORS['button'], self.rect)
+        color = COLORS['button_hover'] if self.rect.collidepoint(mx, my) else COLORS['button']
+        pygame.draw.rect(surf, color, self.rect)
         surf.blit(font.render(self.text, True, COLORS['text']), (self.rect.x+10, self.rect.y+10))
     def clicked(self):
         if pygame.mouse.get_pressed()[0]:
             return self.rect.collidepoint(pygame.mouse.get_pos())
         return False
 
+# --- Dataset ---
 DATASETS_DIR = Path("datasets")
 DATASETS_DIR.mkdir(exist_ok=True)
 
+# --- Variáveis globais ---
+recognised = None
+recognition_running = False
+dataset_embeddings = []
+dataset_labels = []
+
+# --- Preparar embeddings do dataset ---
+print("[INFO] Preparando embeddings do dataset...")
+for person_dir in DATASETS_DIR.iterdir():
+    if person_dir.is_dir():
+        for imgfile in person_dir.glob("*.jpg"):
+            try:
+                emb = DeepFace.represent(str(imgfile), model_name="Facenet", enforce_detection=False)[0]["embedding"]
+                emb = np.array(emb)  # converter para numpy
+                dataset_embeddings.append(emb)
+                dataset_labels.append(person_dir.name)
+            except Exception as e:
+                print(f"[WARN] Erro ao processar {imgfile}: {e}")
+print("[INFO] Embeddings prontos!")
+
+# --- Função de reconhecimento facial ---
+def face_unlock_thread(frame):
+    global recognised, recognition_running
+    recognition_running = True
+    try:
+        # Extrair rostos do frame
+        faces = DeepFace.extract_faces(frame, detector_backend="opencv", enforce_detection=False)
+        if faces:
+            face_img = faces[0]["face"]
+            frame_emb = np.array(DeepFace.represent(face_img, model_name="Facenet", enforce_detection=False)[0]["embedding"])
+
+            from numpy import linalg as LA
+            distances = [LA.norm(frame_emb - np.array(e)) for e in dataset_embeddings]
+            if len(distances) > 0:
+                min_idx = distances.index(min(distances))
+                if distances[min_idx] < 0.6:  # threshold
+                    recognised = dataset_labels[min_idx]
+    except Exception as e:
+        print("Erro no reconhecimento facial:", e)
+        recognised = None
+    recognition_running = False
+
+# --- Main ---
 def main():
+    global recognised, recognition_running
     pygame.init()
     WIDTH, HEIGHT = 900, 600
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -86,6 +128,8 @@ def main():
     if not cap.isOpened():
         print("Não foi possível abrir a câmera.")
         sys.exit()
+
+    unlock_start_time = None
 
     running = True
     while running:
@@ -111,39 +155,35 @@ def main():
 
         if btn_code.clicked():
             new_code = text_input_box(screen, font, "Novo Código:")
-            if new_code.strip():
+            if new_code:
                 config['pin'] = new_code
                 save_config()
 
-        if btn_unlock.clicked():
+        # --- Desbloquear ---
+        if btn_unlock.clicked() and not recognition_running:
             recognised = None
-            start_time = time.time()
-            while time.time() - start_time < 10:
-                ret, frame = cap.read()
-                if not ret:
-                    continue
-                for imgfile in DATASETS_DIR.glob("**/*.jpg"):
-                    try:
-                        result = DeepFace.verify(frame, str(imgfile), enforce_detection=False)
-                        if result['verified']:
-                            recognised = imgfile.parent.name
-                            break
-                    except:
-                        pass
-                if recognised:
-                    break
+            unlock_start_time = time.time()
+            threading.Thread(target=face_unlock_thread, args=(frame.copy(),), daemon=True).start()
 
-            if not recognised:
+        # --- Mostrar resultado ---
+        if not recognition_running and recognised:
+            screen.blit(font.render(f"Bem-vindo {recognised}", True, COLORS['text']), (200, 400))
+            pygame.display.flip()
+            time.sleep(2)
+            recognised = None
+            unlock_start_time = None
+
+        # --- Fallback PIN após 5s ---
+        if unlock_start_time and not recognition_running:
+            if time.time() - unlock_start_time > 5:
                 pin = text_input_box(screen, font, "Código:")
                 if pin == config['pin']:
-                    recognised = "PIN OK"
+                    screen.blit(font.render(f"Bem-vindo {pin}", True, COLORS['text']), (200, 400))
+                    pygame.display.flip()
+                    time.sleep(2)
+                unlock_start_time = None
 
-            if recognised:
-                screen.blit(font.render(f"Bem-vindo {recognised}", True, COLORS['text']), (200, 400))
-                pygame.display.flip()
-                time.sleep(2)
-
-        # Mostrar câmera
+        # --- Mostrar câmera ---
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         surf = pygame.surfarray.make_surface(rgb.swapaxes(0,1))
         surf = pygame.transform.scale(surf, (600,600))
