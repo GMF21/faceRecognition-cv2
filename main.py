@@ -6,9 +6,11 @@ import cv2
 import numpy as np
 import json
 import pickle
+import os
 
 # --- Configuração ---
 CONFIG_FILE = Path("config.json")
+ASSETS_DIR = Path("assets")
 if CONFIG_FILE.exists():
     config = json.loads(CONFIG_FILE.read_text())
 else:
@@ -46,9 +48,10 @@ def text_input_box(screen, font, prompt):
     return txt.strip()
 
 class Button:
-    def __init__(self, text, x, y, w, h):
+    def __init__(self, text, x, y, w, h, click_sound=None):
         self.text = text
         self.rect = pygame.Rect(x, y, w, h)
+        self.click_sound = click_sound
     def draw(self, surf, font):
         mx, my = pygame.mouse.get_pos()
         color = COLORS['button_hover'] if self.rect.collidepoint(mx, my) else COLORS['button']
@@ -56,6 +59,8 @@ class Button:
         surf.blit(font.render(self.text, True, COLORS['text']), (self.rect.x+10, self.rect.y+10))
     def clicked(self):
         if pygame.mouse.get_pressed()[0]:
+            if self.rect.collidepoint(pygame.mouse.get_pos()) and self.click_sound:
+                self.click_sound.play()
             return self.rect.collidepoint(pygame.mouse.get_pos())
         return False
 
@@ -86,6 +91,15 @@ else:
 # Haar cascade
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
+# --- Inicializar pygame.mixer para sons ---
+pygame.mixer.init()
+# Caminhos relativos
+sound_click_path = ASSETS_DIR / "Wooden Button Click Sound Effect [T_Q3M6vpCAQ].wav"
+sound_unlock_path = ASSETS_DIR / "microsoft-windows-xp-startup-sound.wav"
+# Carregar sons
+click_sound = pygame.mixer.Sound(str(sound_click_path)) if sound_click_path.exists() else None
+unlock_sound = pygame.mixer.Sound(str(sound_unlock_path)) if sound_unlock_path.exists() else None
+
 # --- Main ---
 def main():
     pygame.init()
@@ -95,9 +109,10 @@ def main():
     font = pygame.font.SysFont(None, 32)
     clock = pygame.time.Clock()
 
-    btn_recognize = Button("Reconhecer", 650, 100, 200, 50)
-    btn_code = Button("Alterar Código", 650, 180, 200, 50)
-    btn_exit = Button("Sair", 650, 260, 200, 50)
+    # Botões com som
+    btn_recognize = Button("Reconhecer", 650, 100, 200, 50, click_sound=click_sound)
+    btn_code = Button("Alterar Código", 650, 180, 200, 50, click_sound=click_sound)
+    btn_exit = Button("Sair", 650, 260, 200, 50, click_sound=click_sound)
 
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     if not cap.isOpened():
@@ -149,8 +164,10 @@ def main():
             for (x, y, w, h) in faces:
                 rosto = gray[y:y+h, x:x+w]
                 id_pred, confianca = face_recognizer.predict(rosto)
-                if confianca < 85:  # confiança
+                if confianca < 85:
                     recognized_name = label_map.get(id_pred, "Desconhecido")
+                    if unlock_sound:
+                        unlock_sound.play()  # toca som de desbloqueio
                 else:
                     recognized_name = "Desconhecido"
                 cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
@@ -162,6 +179,8 @@ def main():
             pin = text_input_box(screen, font, "Código:")
             if pin == config["pin"]:
                 recognized_name = "PIN OK"
+                if unlock_sound:
+                    unlock_sound.play()
             timer_start = None
 
         # --- Mostrar mensagem de boas-vindas ---
