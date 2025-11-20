@@ -1,61 +1,83 @@
-Face Recognition App (OpenCV + Pygame + LBPH)
+project/
+│
+├─ assets/                     # Audio assets
+│  ├─ Wooden Button Click Sound Effect [T_Q3M6vpCAQ].wav
+│  └─ microsoft-windows-xp-startup-sound.wav
+│
+├─ datasets/                   # Captured face images per user
+│  └─ <username>/
+│      ├─ image_1.jpg
+│      ├─ image_2.jpg
+│      └─ ...
+│
+├─ config.json                 # Stored PIN and settings
+├─ main.py                     # Main app for face unlock
+├─ train.py                     # Captures faces for new users
+└─ treino_lbph.py              # Trains LBPH face recognizer
 
-A Python application for face recognition using OpenCV (LBPH) with a Pygame GUI.
+Face Recognition Unlock System (CV2 + Pygame + LBPH)
+Description
+
+-This project is a face recognition-based unlock system using OpenCV, Pygame, and LBPH. It allows you to train new users, recognize faces in real-time, and fallback to a PIN code if recognition fails.
+
+-The app is designed for educational purposes and provides a minimal, functional GUI for face unlock.
 
 Features
 
-900×600 px Pygame window
+-Window layout: 900x600 Pygame window
 
-Left (600×600): webcam feed
+-Left panel (600x600): Live webcam feed
 
-Right (300×600): control panel with buttons:
+-Right panel (300x600): Control panel with buttons:
 
-Unlock: tries to recognize the face
+-Unlock: Attempts to recognize the face
 
-Change Code: modify stored PIN
+-Change Code: Modify stored PIN
 
-Add Person: captures face images for training new users
+-Add Person: Capture new face images for training
 
-Exit: closes the app
+-Exit: Close the application
 
 Add Person
 
-Prompts for name via Pygame text input
+-Prompts for a name via Pygame text input
 
-Captures webcam images (crops detected faces)
+-Captures 50 face images from webcam
 
-Saves 50 face images to datasets/<name>/ for training
+-Saves images in datasets/<name>/
 
-LBPH Training
+LBPH Training (treino_lbph.py)
 
-Separate script: treino_lbph.py
+-Loops through datasets/ directories to train the LBPH recognizer
 
-Loops through all directories in datasets/ to train LBPH recognizer
+-Saves the trained model as modelo_lbph.yml
 
-Saves trained model as modelo_lbph.yml and labels as labels.pkl
+-Saves labels mapping as labels.pkl
 
 Face Recognition
 
-Detects faces using Haar Cascade
+-Uses Haar Cascade to detect faces
 
-Predicts identity with LBPH recognizer
+-Recognizes identity using the LBPH model
 
-Low-confidence predictions are labeled as “Unknown”
+-If confidence is low, labeled as Unknown
 
 Fallback PIN
 
-If no face is recognized within 10 seconds after clicking “Unlock”, prompts for a PIN
+-If no face is recognized within 10 seconds during Unlock, prompts for PIN
 
-PIN is stored in config.json and can be changed in the app
+-PIN is stored in config.json
 
-Correct PIN unlocks the app (“Welcome PIN OK”), otherwise shows an error
+-Correct PIN displays welcome message and unlocks app
 
-Sounds
+-Incorrect PIN shows an error
 
-Button click sound
+Dependencies
 
-Unlock sound when face or PIN is recognized
+-Python 3.x
 
-Sounds are loaded from assets/ using relative paths
+-OpenCV (opencv-python)
 
-Folder Structure
+-Pygame
+
+-NumPy
