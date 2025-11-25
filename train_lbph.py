@@ -1,46 +1,54 @@
-# treino_lbph.py
+# train_lbph.py
 
 import cv2
 import os
 import numpy as np
 import pickle
+from pathlib import Path
 
-FACES_DIR = "datasets"
+FACES_DIR = Path("datasets")
 MODEL_FILE = "modelo_lbph.yml"
 LABELS_FILE = "labels.pkl"
 
-face_recognizer = cv2.face.LBPHFaceRecognizer_create()
+def main():
+    try:
+        face_recognizer = cv2.face.LBPHFaceRecognizer_create()
+    except:
+        print("[ERRO] OpenCV contrib não instalado.")
+        return
 
-faces = []
-labels = []
-label_map = {}
-label_id = 0
+    faces = []
+    labels = []
+    label_map = {}
+    label_id = 0
 
-print("[INFO] A treinar LBPH...")
+    print("[INFO] Treinando LBPH...")
 
-for pessoa in os.listdir(FACES_DIR):
-    pasta = os.path.join(FACES_DIR, pessoa)
-    if not os.path.isdir(pasta):
-        continue
+    for pessoa in os.listdir(FACES_DIR):
+        pasta = os.path.join(FACES_DIR, pessoa)
+        if not os.path.isdir(pasta):
+            continue
 
-    print(f"[INFO] Processando {pessoa}")
+        print(f"[INFO] Processando {pessoa}")
+        label_map[label_id] = pessoa
 
-    label_map[label_id] = pessoa
+        for img_nome in os.listdir(pasta):
+            path = os.path.join(pasta, img_nome)
+            img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            if img is not None:
+                faces.append(img)
+                labels.append(label_id)
 
-    for img_nome in os.listdir(pasta):
-        path = os.path.join(pasta, img_nome)
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        label_id += 1
 
-        if img is not None:
-            faces.append(img)
-            labels.append(label_id)
+    if faces and labels:
+        face_recognizer.train(faces, np.array(labels))
+        face_recognizer.save(MODEL_FILE)
+        with open(LABELS_FILE, "wb") as f:
+            pickle.dump(label_map, f)
+        print("[INFO] Treino concluído!")
+    else:
+        print("[ERRO] Nenhuma face encontrada para treinar.")
 
-    label_id += 1
-
-face_recognizer.train(faces, np.array(labels))
-face_recognizer.save(MODEL_FILE)
-
-with open(LABELS_FILE, "wb") as f:
-    pickle.dump(label_map, f)
-
-print("[INFO] Treino concluído!")
+if __name__ == "__main__":
+    main()

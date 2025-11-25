@@ -1,25 +1,12 @@
-# train.py - Captura de rostos para LBPH (OpenCV + Pygame)
-
 import pygame
-import sys
-from pathlib import Path
 import cv2
+import sys
 import os
-import numpy as np
+from pathlib import Path
+import cfg
 
 # ----------------------------
-# Cores
-# ----------------------------
-COLORS = {
-    "bg": (30, 30, 30),
-    "panel": (45, 45, 45),
-    "button": (70, 70, 70),
-    "button_hover": (90, 90, 90),
-    "text": (230, 230, 230),
-}
-
-# ----------------------------
-# Funções de UI
+# UI
 # ----------------------------
 def text_input_box(screen, font, prompt):
     txt = ""
@@ -38,13 +25,12 @@ def text_input_box(screen, font, prompt):
                 else:
                     txt += event.unicode
 
-        screen.fill(COLORS['bg'])
-        screen.blit(font.render(prompt, True, COLORS['text']), (50, 200))
-        screen.blit(font.render(txt, True, COLORS['text']), (50, 260))
+        screen.fill(cfg.COLORS['bg'])
+        screen.blit(font.render(prompt, True, cfg.COLORS['text']), (50, 200))
+        screen.blit(font.render(txt, True, cfg.COLORS['text']), (50, 260))
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(cfg.FPS)
     return txt.strip()
-
 
 class Button:
     def __init__(self, text, x, y, w, h):
@@ -53,26 +39,22 @@ class Button:
 
     def draw(self, surf, font):
         mx, my = pygame.mouse.get_pos()
-        color = COLORS['button_hover'] if self.rect.collidepoint(mx, my) else COLORS['button']
+        color = cfg.COLORS['button_hover'] if self.rect.collidepoint(mx, my) else cfg.COLORS['button']
         pygame.draw.rect(surf, color, self.rect)
-        surf.blit(font.render(self.text, True, COLORS['text']), (self.rect.x+10, self.rect.y+10))
+        surf.blit(font.render(self.text, True, cfg.COLORS['text']), (self.rect.x+10, self.rect.y+10))
 
-    def clicked(self):
-        return pygame.mouse.get_pressed()[0] and self.rect.collidepoint(pygame.mouse.get_pos())
-
-
-# ----------------------------
-# Diretório de datasets
-# ----------------------------
-DATASETS_DIR = Path("datasets")
-DATASETS_DIR.mkdir(exist_ok=True)
-
+    def clicked(self, events):
+        for event in events:
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if self.rect.collidepoint(event.pos):
+                    return True
+        return False
 
 # ----------------------------
-# Função para capturar faces
+# Captura de faces
 # ----------------------------
-def capture_faces(name, cap, num_images=50):
-    person_dir = DATASETS_DIR / name
+def capture_faces(name, cap, screen):
+    person_dir = cfg.DATASETS_DIR / name
     person_dir.mkdir(exist_ok=True)
 
     existing = len(os.listdir(person_dir))
@@ -80,9 +62,11 @@ def capture_faces(name, cap, num_images=50):
 
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
 
-    print(f"[INFO] A capturar {num_images} imagens de {name}...")
+    print(f"[INFO] Capturando {cfg.NUM_IMAGES_PER_PERSON} imagens de {name}...")
 
-    while count - existing < num_images:
+    clock = pygame.time.Clock()
+
+    while count - existing < cfg.NUM_IMAGES_PER_PERSON:
         ret, frame = cap.read()
         if not ret:
             continue
@@ -94,27 +78,25 @@ def capture_faces(name, cap, num_images=50):
             rosto = gray[y:y+h, x:x+w]
             count += 1
             cv2.imwrite(str(person_dir / f"{name}_{count}.jpg"), rosto)
-            print(f"[INFO] Foto {count - existing}/{num_images}")
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (0,255,0), 2)
+            cv2.putText(frame, f"{count}/{cfg.NUM_IMAGES_PER_PERSON}", (x, y-10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
 
-        # Mostrar câmera em pygame
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         surf = pygame.surfarray.make_surface(rgb.swapaxes(0,1))
-        surf = pygame.transform.scale(surf, (600, 600))
+        surf = pygame.transform.scale(surf, (cfg.DISPLAY_WIDTH, cfg.DISPLAY_HEIGHT))
         screen.blit(surf, (0,0))
         pygame.display.flip()
-        pygame.time.delay(30)
+        clock.tick(cfg.FPS)
 
     print("[INFO] Captura concluída!")
 
-
 # ----------------------------
-# Main
+# Main do train
 # ----------------------------
 def main():
-    global screen
     pygame.init()
-    WIDTH, HEIGHT = 900, 600
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    screen = pygame.display.set_mode((cfg.WIDTH, cfg.HEIGHT))
     pygame.display.set_caption("Captura de Rostos (LBPH)")
     font = pygame.font.SysFont(None, 32)
     clock = pygame.time.Clock()
@@ -122,8 +104,7 @@ def main():
     btn_add = Button("Adicionar Pessoa", 650, 100, 200, 50)
     btn_exit = Button("Sair", 650, 180, 200, 50)
 
-    # Tenta abrir a webcam
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(cfg.CAMERA_INDEX)
     if not cap.isOpened():
         print("[ERRO] Não foi possível abrir a câmera.")
         pygame.quit()
@@ -131,38 +112,37 @@ def main():
 
     running = True
     while running:
-        for event in pygame.event.get():
+        events = pygame.event.get()
+        for event in events:
             if event.type == pygame.QUIT:
                 running = False
 
         ret, frame = cap.read()
-
-        screen.fill(COLORS['bg'])
-        pygame.draw.rect(screen, COLORS['panel'], pygame.Rect(600, 0, 300, 600))
+        screen.fill(cfg.COLORS['bg'])
+        pygame.draw.rect(screen, cfg.COLORS['panel'], pygame.Rect(600, 0, 300, 600))
 
         btn_add.draw(screen, font)
         btn_exit.draw(screen, font)
 
-        if btn_exit.clicked():
+        if btn_exit.clicked(events):
             running = False
 
-        if btn_add.clicked():
+        if btn_add.clicked(events):
             name = text_input_box(screen, font, "Nome da pessoa:")
             if name:
-                capture_faces(name, cap)
+                capture_faces(name, cap, screen)
 
         if ret:
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             surf = pygame.surfarray.make_surface(rgb.swapaxes(0,1))
-            surf = pygame.transform.scale(surf, (600, 600))
+            surf = pygame.transform.scale(surf, (cfg.DISPLAY_WIDTH, cfg.DISPLAY_HEIGHT))
             screen.blit(surf, (0,0))
 
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(cfg.FPS)
 
     cap.release()
     pygame.quit()
-
 
 if __name__ == "__main__":
     main()
