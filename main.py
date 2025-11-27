@@ -1,3 +1,4 @@
+# main.py
 import pygame
 import sys
 import time
@@ -6,12 +7,12 @@ import numpy as np
 import json
 import pickle
 
-import cfg          # Constantes e configurações fixas
+import cfg          # Constantes e configurações
 import train        # Captura de rostos
 import train_lbph   # Treino LBPH
 
 # ----------------------------
-# Função para detectar webcam automaticamente
+# Detectar webcam automaticamente
 # ----------------------------
 def get_working_camera(max_test=5):
     for i in range(max_test):
@@ -26,7 +27,7 @@ def get_working_camera(max_test=5):
     return None
 
 # ----------------------------
-# Carregar ou criar config.json (PIN)
+# Configuração PIN
 # ----------------------------
 if cfg.CONFIG_FILE.exists():
     config = json.loads(cfg.CONFIG_FILE.read_text())
@@ -37,7 +38,7 @@ def save_config():
     cfg.CONFIG_FILE.write_text(json.dumps(config, indent=4))
 
 # ----------------------------
-# Input de texto
+# Input de texto via Pygame
 # ----------------------------
 def text_input_box(screen, font, prompt, mask=False):
     txt = ""
@@ -185,10 +186,11 @@ def main():
         if btn_add_person.clicked(events):
             timer_start = None
             recognized_name = None
-            train.main()  # train.py vai usar cfg.py
-            recognized_name = "Captura concluída"
-            msg_color = cfg.COLORS['correct']
-            msg_timer = time.time()
+            success = train.main(cap, screen, font)
+            if success:
+                recognized_name = "Captura concluída"
+                msg_color = cfg.COLORS['correct']
+                msg_timer = time.time()
 
         # TREINAR LBPH
         if btn_train.clicked(events):
