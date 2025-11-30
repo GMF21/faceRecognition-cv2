@@ -34,7 +34,7 @@ def text_input_box(screen, font, prompt):
     return txt.strip()
 
 # ----------------------------
-# Captura de faces
+# Captura de caras
 # ----------------------------
 def capture_faces(name, cap, screen, font):
     person_dir = cfg.DATASETS_DIR / name
