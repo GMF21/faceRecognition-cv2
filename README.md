@@ -74,10 +74,6 @@ Fallback PIN
 
 Dependencies
 
--Python 3.x
-
--OpenCV (opencv-python)
-
--Pygame
-
--NumPy
+-pygame
+-numpy
+-opencv-contrib-python
