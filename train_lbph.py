@@ -27,7 +27,7 @@ def main():
         label_map[current_label] = person_name
 
         for img_file in sorted(person_dir.glob("*.jpg")):
-            img = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
+            img = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE) #transform ANpy
             if img is None:
                 continue
             faces.append(img)
